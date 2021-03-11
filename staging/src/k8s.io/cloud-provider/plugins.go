@@ -91,6 +91,17 @@ func IsExternal(name string) bool {
 	return name == externalCloudProvider
 }
 
+// IsDeprecatedInternal is responsible for serving DisableCloudProviders featureGate and stop cloud.Interface
+// from being initialized in kubelet, kube-controller-manager or kube-api-server
+func IsDeprecatedInternal(name string) bool {
+	switch name {
+	case "aws", "azure", "gce", "openstack", "vsphere":
+		return true
+	}
+
+	return false
+}
+
 func DeprecationWarningForProvider(providerName string) {
 	for _, provider := range deprecatedCloudProviders {
 		if provider.name != providerName {

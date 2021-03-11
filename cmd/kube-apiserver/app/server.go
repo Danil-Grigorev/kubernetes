@@ -72,6 +72,7 @@ import (
 	"k8s.io/kubernetes/pkg/controlplane"
 	"k8s.io/kubernetes/pkg/controlplane/reconcilers"
 	"k8s.io/kubernetes/pkg/controlplane/tunneler"
+	"k8s.io/kubernetes/pkg/features"
 	generatedopenapi "k8s.io/kubernetes/pkg/generated/openapi"
 	"k8s.io/kubernetes/pkg/kubeapiserver"
 	kubeapiserveradmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
@@ -244,14 +245,22 @@ func CreateNodeDialer(s completedServerRunOptions) (tunneler.Tunneler, *http.Tra
 		// Get ssh key distribution func, if supported
 		var installSSHKey tunneler.InstallSSHKey
 
-		cloudprovider.DeprecationWarningForProvider(s.CloudProvider.CloudProvider)
-		cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider.CloudProvider, s.CloudProvider.CloudConfigFile)
-		if err != nil {
-			return nil, nil, fmt.Errorf("cloud provider could not be initialized: %v", err)
+		if utilfeature.DefaultFeatureGate.Enabled(features.DisableCloudProviders) && cloudprovider.IsDeprecatedInternal(s.CloudProvider.CloudProvider) {
+			return nil, nil, fmt.Errorf(
+				"cloud provider %q was specified, but in-tree cloud providers are disabled. Please move to --cloud-provider=external and out-of-tree CCM/CSI in your cluster",
+				s.CloudProvider.CloudProvider)
 		}
-		if cloud != nil {
-			if instances, supported := cloud.Instances(); supported {
-				installSSHKey = instances.AddSSHKeyToAllInstances
+
+		if !cloudprovider.IsExternal(s.CloudProvider.CloudProvider) {
+			cloudprovider.DeprecationWarningForProvider(s.CloudProvider.CloudProvider)
+			cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider.CloudProvider, s.CloudProvider.CloudConfigFile)
+			if err != nil {
+				return nil, nil, fmt.Errorf("cloud provider could not be initialized: %v", err)
+			}
+			if cloud != nil {
+				if instances, supported := cloud.Instances(); supported {
+					installSSHKey = instances.AddSSHKeyToAllInstances
+				}
 			}
 		}
 		if s.KubeletConfig.Port == 0 {

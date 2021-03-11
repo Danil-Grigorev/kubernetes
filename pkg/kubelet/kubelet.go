@@ -387,6 +387,12 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		}
 	}
 
+	if utilfeature.DefaultFeatureGate.Enabled(features.DisableCloudProviders) && cloudprovider.IsDeprecatedInternal(cloudProvider) {
+		return nil, fmt.Errorf(
+			"cloud provider %q was specified, but in-tree cloud providers are disabled. Please move to --cloud-provider=external and out-of-tree CCM/CSI in your cluster",
+			cloudProvider)
+	}
+
 	var nodeHasSynced cache.InformerSynced
 	var nodeLister corelisters.NodeLister
 
